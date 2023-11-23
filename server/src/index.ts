@@ -11,6 +11,7 @@ import cors from 'cors';
 //import getMessagesByConversationId from './controllers/messageController';
 import indexRoutes from './routes/indexRoutes';
 import contactRoutes from './routes/contactRoutes';
+import fileRoutes from './routes/fileRoutes';
 const WebSocket = require('ws');
 const jwt = require("jsonwebtoken");
 const http = require('http');
@@ -43,8 +44,78 @@ class Server {
   routes(): void {
 
     this.app.use('/', indexRoutes);
-    this.app.use('/apistore/contact', contactRoutes);
+    this.app.use('/apistore/contacts', contactRoutes);
+    this.app.use('/apistore/file', fileRoutes);
+    // Ruta para guardar imagenes
+    this.app.use("/build/uploads/img", express.static(path.join(__dirname, "uploads/img")));
+    const storage = multer.diskStorage({
+      destination: (req, file, callBack) => {
+        callBack(null, "build/uploads/img");
+      },
+      filename: (req, file, callBack) => {
+        callBack(null, file.originalname);
+      },
+    });
+    const upload = multer({ storage: storage });
+    this.app.get("/apistore/upload", (req: any, res: any) => {
+      pool.query(
+        "SELECT * FROM  file",
+        (err: any, rows: any, fields: any) => {
+          if (!err) {
+            res.json(rows);
+          } else {
+            console.log(err);
+          }
+        }
+      );
+    });
+    this.app.post(
+      "/apistore/saveimg",
+      upload.single("file"),
+      (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        // Check if req.file is defined before accessing its properties
+        
+        const file: any = req.file;
 
+        const filesImg = {
+          FileId: null,
+          Name: file.filename,
+          Image: file.path,
+          Date: new Date()
+        };
+
+        if (!file) {
+          const error: any = new Error("No File");
+          error.httpStatusCode = 400;
+          return next(error);
+        }
+
+        res.send(file);
+      
+        console.log(filesImg);
+
+        pool.query("INSERT INTO file set ?", [filesImg]);
+        
+        //res.json({ message: 'File saved' });
+      }
+    );
+    this.app.delete("/apistore/file/:id", (req: express.Request, res: express.Response) => {
+      const { id } = req.params;
+      deleteFile(id);
+      pool.query("DELETE FROM file WHERE FileId = ?", [id]);
+      res.json({ message: "The file was deleted" });
+    });
+    async function deleteFile(id: number) {
+      const files = await pool.query("SELECT * FROM  file WHERE FileId = ?", [id]);
+      const filePath = './' + files[0].Image;
+      fs.unlink(filePath, (err: any) => {
+        if (err) {
+          console.error('Error al eliminar el archivo:', err);
+          return;
+        }
+        console.log('Archivo eliminado exitosamente');
+      });
+    }
   }
 
 
@@ -61,7 +132,7 @@ class Server {
       ws.on('message', (message: any) => {
         console.log('Mensaje recibido:', message.toString('utf8'));
         // Enviar mensaje de vuelta al cliente
-        wss.clients.forEach((client:any) => {
+        wss.clients.forEach((client: any) => {
           if (client.readyState === WebSocket.OPEN) {
             client.send('¡Hola cliente!');
           }

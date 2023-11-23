@@ -1,5 +1,4 @@
 import express, { Router } from 'express';
-
 import contactController from '../controllers/contactController';
 
 class ContactRoutes {
@@ -11,13 +10,13 @@ class ContactRoutes {
     }
 
     config() {
+
         this.router.get('/', contactController.list);
         this.router.get('/:id', contactController.getOne);
         this.router.post('/', contactController.create);
         this.router.put('/:id', contactController.update);
         this.router.delete('/:id', contactController.delete);
-        
-        
+
     }
 
 }
